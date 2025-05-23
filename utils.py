@@ -11,7 +11,6 @@ from datetime import datetime
 from sklearn.neighbors import LocalOutlierFactor
 from sklearn.preprocessing import MinMaxScaler
 
-import time
 
 
 def ver_correlaciones(
@@ -134,7 +133,7 @@ def comparo_test_train(df_train, df_test, cols="all", show=False):
 
 
 # @title figura_barrios_geo
-def figura_barrios_geo(df, by="l3"):
+def figura_barrios_geo(df, tipo="train", by="l3", show=False):
     fig = px.scatter_mapbox(
         df.sort_values(by=by),
         lat="lat",
@@ -142,8 +141,9 @@ def figura_barrios_geo(df, by="l3"):
         color=by,
         mapbox_style="carto-positron",
     )
-
-    fig.show()
+    fig.to_html(f"mapa_barrios_{tipo}_{by}.html")
+    if show:
+        fig.show()
 
 
 # @title grafico_4d_lofScore_y_filtroThr
@@ -313,3 +313,5 @@ def elapsed_time(func):
         return result
 
     return wrapper
+
+
