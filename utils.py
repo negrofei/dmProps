@@ -11,7 +11,9 @@ from datetime import datetime
 from sklearn.neighbors import LocalOutlierFactor
 from sklearn.preprocessing import MinMaxScaler
 
+from pathlib import Path
 
+output = Path("/home/mfeijoo/Documents/yo/master/dm/output/")
 
 def ver_correlaciones(
     df,
@@ -60,7 +62,7 @@ def ver_correlaciones(
 
 # @title `comparo_test_train`
 def comparo_test_train(df_train, df_test, cols="all", show=False):
-
+    
     columnas = [
         ("l3", None, None),
         ("barrio", None, None),
@@ -127,7 +129,7 @@ def comparo_test_train(df_train, df_test, cols="all", show=False):
         plt.legend()
         plt.grid(True)
         plt.tight_layout()
-        plt.savefig(f"hist_{col}.png")  # Guarda la figura como imagen PNG
+        plt.savefig(output.joinpath(f"hist_{col}.png"))  # Guarda la figura como imagen PNG
         if show:
             plt.show()
 
@@ -141,7 +143,7 @@ def figura_barrios_geo(df, tipo="train", by="l3", show=False):
         color=by,
         mapbox_style="carto-positron",
     )
-    fig.to_html(f"mapa_barrios_{tipo}_{by}.html")
+    fig.to_html(output.joinpath(f"mapa_barrios_{tipo}_{by}.html"))
     if show:
         fig.show()
 
@@ -313,5 +315,84 @@ def elapsed_time(func):
         return result
 
     return wrapper
+
+
+# @title `plot_pred_vs_true_interactivo`
+def plot_pred_vs_true_interactivo(y_test, y_pred, name="Modelo", rmse_tol=39528.46083):
+    # Constante: tolerancia máxima (el RMSE permitido)
+    rmse_threshold = rmse_tol
+
+    # Rango de valores para trazar la línea y = x y sus bandas
+    min_val = min(y_test.min(), y_pred.min())
+    max_val = max(y_test.max(), y_pred.max())
+    line = np.linspace(min_val, max_val, 500)
+
+    fig = go.Figure()
+
+    # Scatter: puntos reales vs predichos
+    fig.add_trace(
+        go.Scatter(
+            x=y_test,
+            y=y_pred,
+            mode="markers",
+            name="Predicciones",
+            marker=dict(
+                color="blue", opacity=0.5, size=6, line=dict(width=0.5, color="black")
+            ),
+            hovertemplate="Real: %{x}<br>Predicho: %{y}<extra></extra>",
+        )
+    )
+
+    # Línea ideal: y = x
+    fig.add_trace(
+        go.Scatter(
+            x=line,
+            y=line,
+            mode="lines",
+            name="Línea ideal (y = x)",
+            line=dict(color="red", dash="dash"),
+        )
+    )
+
+    # Banda de tolerancia: y = x ± RMSE
+    fig.add_trace(
+        go.Scatter(
+            x=line,
+            y=line + rmse_threshold,
+            mode="lines",
+            name="Tolerancia +RMSE",
+            line=dict(color="orange", width=0),
+            showlegend=False,
+        )
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=line,
+            y=line - rmse_threshold,
+            mode="lines",
+            name="Tolerancia -RMSE",
+            line=dict(color="orange", width=0),
+            fill="tonexty",
+            fillcolor="rgba(255,165,0,0.3)",
+            hoverinfo="skip",
+            showlegend=True,
+        )
+    )
+
+    fig.update_layout(
+        title=f"{name}: Predicciones vs Valores reales (con tolerancia ±RMSE)",
+        xaxis_title="Precio real (USD)",
+        yaxis_title="Precio predicho (USD)",
+        legend=dict(x=0.02, y=0.98),
+        width=700,
+        height=700,
+        margin=dict(l=50, r=50, t=80, b=50),
+        template="plotly_white",
+    )
+
+    fig.update_yaxes(scaleanchor="x", scaleratio=1)  # eje cuadrado
+    fig.show()
+    fig.write_html(f"{name}_pred_vs_true_interactivo.html")
 
 

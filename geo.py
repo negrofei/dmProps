@@ -34,6 +34,10 @@ def me_fijo_si_barrio_esta_bien(df):
     barrios_oficial = barrios_oficial.to_crs("EPSG:4326")
     barrios_oficial["nombre"] = barrios_oficial["nombre"].str.lower()
     gdf["l3"] = gdf["l3"].str.lower()
+    gdf["l3"] = gdf["l3"].str.replace("agronomía", "agronomia")
+    gdf["l3"] = gdf["l3"].str.replace("constitución", "constitucion")
+    gdf["l3"] = gdf["l3"].str.replace("villa general mitre", "villa gral. mitre")
+    gdf["l3"] = gdf["l3"].str.replace("villa pueyrredón", "villa pueyrredon")
 
     # Paso 4: Hacer un spatial join
     gdf_joined = gpd.sjoin(
@@ -69,10 +73,12 @@ def relleno_latlon_con_media_barrio(df, by="barrio_oficial"):
     df_out["corrijo_latlon"] = df_out["lat"].isna() | (df_out["lon"].isna())
     df_out["lat"] = df_out["lat"].fillna(df_out["mean_lat"])
     df_out["lon"] = df_out["lon"].fillna(df_out["mean_lon"])
+    # Si barrio_oficial es nan, pongo l3
+    df_out["barrio_oficial"] = df_out["barrio_oficial"].fillna(df_out["l3"])
     return df_out
 
 
-def barrios_con_OSM(df, by="barrio_oficial", barrio="belgrano"):
+def barrios_con_OSM(df, by="barrio_oficial"): #, barrio="belgrano"):
     geolocator = Nominatim(user_agent="sdfghj")
     reverse = RateLimiter(
         geolocator.reverse, min_delay_seconds=1, max_retries=3, error_wait_seconds=2.0
@@ -84,7 +90,7 @@ def barrios_con_OSM(df, by="barrio_oficial", barrio="belgrano"):
     def get_osm_info(lat, lon):
         if np.isnan(lat) or np.isnan(lon):
             return (None, None)
-        key = (round(lat, 6), round(lon, 6))  # redondeo para evitar microvariaciones
+        key = (round(lat, 5), round(lon, 5))  # redondeo para evitar microvariaciones
         if key in cache:
             return cache[key]
 
@@ -110,5 +116,9 @@ def barrios_con_OSM(df, by="barrio_oficial", barrio="belgrano"):
         return df
 
     df_out = df.copy()
-    aver = agregar_barrios_osm(df_out[df_out[by] == barrio])
+    aver = agregar_barrios_osm(df_out)
+    aver = aver[["lat", "lon", "l3_OSM", "l4_OSM"]]
+    aver.to_csv("barrios_osm.csv", index=False)
     return aver
+
+

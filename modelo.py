@@ -18,7 +18,7 @@ model_params_default = {
 
 
 def entreno_RandomForestRegressor(
-    X, y, test_size=0.1, random_state=42, model_params=model_params_default
+    X: pd.DataFrame, y: pd.DataFrame, test_size=0.1, random_state=42, model_params=model_params_default
 ):
 
     X_train, X_test, y_train, y_test = train_test_split(
@@ -42,8 +42,27 @@ def entreno_RandomForestRegressor(
 
     score_test = root_mean_squared_error(y_test, y_pred)
     print(f"Score en prueba: {score_test}")
+    return reg, y_pred, score_test, (X_test, y_test)
 
-    return reg, score_test, y_pred, (X_test, y_test)
+
+def dalewacho(
+    train: pd.DataFrame, test: pd.DataFrame, predictores: list, target: str, random_state=42, model_params=model_params_default
+):
+    X_train = train.dropna(subset=predictores + [target])[predictores]
+    y_train = train.dropna(subset=predictores + [target])[target]
+
+    X_test = test.dropna(subset=predictores)[predictores]
+    reg = RandomForestRegressor(**model_params)
+
+    @elapsed_time
+    def fit_reg():
+        reg.fit(X_train, y_train)
+
+    fit_reg()
+
+    y_pred = reg.predict(X_test)
+
+    return reg, y_pred, X_test
 
 
 def feature_importance(reg, predictores):
@@ -54,7 +73,7 @@ def feature_importance(reg, predictores):
         {"feature": predictores, "importance": importances}
     ).sort_values(by="importance", ascending=False)
 
-    print(importancia_df.round(3))
+    # print(importancia_df.round(3))
 
     # Gráfico opcional
     importancia_df.head(20).plot(
@@ -67,6 +86,7 @@ def feature_importance(reg, predictores):
     plt.gca().invert_yaxis()
     plt.tight_layout()
     plt.show()
+    return importancia_df
 
 
 def error_analisis(X_test, y_test, y_pred, by="error"):
