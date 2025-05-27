@@ -103,3 +103,71 @@ def aplico_transformaciones(df: pd.DataFrame):
     df_out = binarizo_sups_cuartiles(df_out)
     df_out = room_menos_bed(total_cov(sup_x_room(sfc_x_bath(df_out))))
     return df_out
+
+
+def precio_xmxbxp(
+    df_train: pd.DataFrame, df_test: pd.DataFrame, by="l3", sub=True, tipo="train", debug=True
+):
+
+    df_out = df_train.copy()
+    df_out["precio_m2"] = df_out["price"] / df_out["surface_covered"]
+
+    # Mean price per m2 by l3 and l4
+    mean_l3 = df_out.groupby("l3")["precio_m2"].mean()
+    std_l3 = df_out.groupby("l3")["precio_m2"].std()
+    if sub:
+        mean_l4 = df_out.groupby("l4")["precio_m2"].mean()
+        std_l4 = df_out.groupby("l4")["precio_m2"].std()
+        count_l4 = df_out.groupby("l4")["precio_m2"].count()
+
+    # Map means and counts to each row
+    df_out["mean_l3"] = df_out["l3"].map(mean_l3)
+    df_out["std_l3"] = df_out["l3"].map(std_l3)
+    if sub:
+        df_out["mean_l4"] = df_out["l4"].map(mean_l4)
+        df_out["std_l4"] = df_out["l4"].map(std_l4)
+        df_out["count_l4"] = df_out["l4"].map(count_l4)
+
+    if sub:
+        # Use l4 mean if l4 is not nan and count >= 3, else l3 mean
+        df_out["precio_xmxbxp"] = np.where(
+            (~df_out["l4"].isna()) & (df_out["count_l4"] >= 3),
+            df_out["mean_l4"],
+            df_out["mean_l3"]
+        )
+        df_out["precio_xmxbxp_std"] = np.where(
+            (~df_out["l4"].isna()) & (df_out["count_l4"] >= 3),
+            df_out["std_l4"],
+            df_out["std_l3"]
+        )
+    else:
+        df_out["precio_xmxbxp"] = df_out["mean_l3"]
+        df_out["precio_xmxbxp_std"] = df_out["std_l3"]
+
+    df_out = df_out.drop(columns=["mean_l3", "std_l3"])
+    if sub:
+        df_out = df_out.drop(columns=["mean_l4", "std_l4", "count_l4"])
+
+
+    if tipo == "test":
+        barrios_precios = df_out[
+            [by, "precio_xmxbxp", "precio_xmxbxp_std"]
+        ].dropna()
+        barrios_precios = barrios_precios.drop_duplicates(subset=[by])
+
+        test_out = df_test.copy()
+        if "precio_xmxbxp" in test_out.columns:
+            test_out = test_out.drop(columns="precio_xmxbxp")
+        if "precio_xmxbxp_std" in test_out.columns:
+            test_out = test_out.drop(columns="precio_xmxbxp_std")
+
+        test_out_index = test_out.index
+        test_out = test_out.merge(
+            barrios_precios, on=[by], how="left"
+        ).set_index(test_out_index)
+        return test_out
+
+    if debug:
+        print(df_out.groupby(by)["precio_m2"].describe())
+
+    return df_out

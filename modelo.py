@@ -9,13 +9,15 @@ import matplotlib.pyplot as plt
 
 model_params_default = {
     "n_estimators": 500,
-    "max_depth": 30,
+    "max_depth": 10,
     "min_samples_split": 2,
     "min_samples_leaf": 2,
     "n_jobs": -1,
     "random_state": 42,
 }
 
+from pathlib import Path
+output = Path("/home/mfeijoo/Documents/yo/master/dm/output/")
 
 def entreno_RandomForestRegressor(
     X: pd.DataFrame, y: pd.DataFrame, test_size=0.1, random_state=42, model_params=model_params_default
@@ -25,10 +27,10 @@ def entreno_RandomForestRegressor(
         X, y, test_size=test_size, random_state=random_state
     )
 
-    print("X_train", X_train.shape)
-    print("X_test", X_test.shape)
-    print("y_train", y_train.shape)
-    print("y_test", y_test.shape)
+    # print("X_train", X_train.shape)
+    # print("X_test", X_test.shape)
+    # print("y_train", y_train.shape)
+    # print("y_test", y_test.shape)
 
     reg = RandomForestRegressor(**model_params)
 
@@ -51,7 +53,7 @@ def dalewacho(
     X_train = train.dropna(subset=predictores + [target])[predictores]
     y_train = train.dropna(subset=predictores + [target])[target]
 
-    X_test = test.dropna(subset=predictores)[predictores]
+    X_test = test[predictores]
     reg = RandomForestRegressor(**model_params)
 
     @elapsed_time
@@ -65,7 +67,7 @@ def dalewacho(
     return reg, y_pred, X_test
 
 
-def feature_importance(reg, predictores):
+def feature_importance(reg, predictores, show=False, save=True):
     importances = reg.feature_importances_
 
     # Convertir a DataFrame para ordenar y graficar
@@ -85,7 +87,10 @@ def feature_importance(reg, predictores):
     )
     plt.gca().invert_yaxis()
     plt.tight_layout()
-    plt.show()
+    if show:
+        plt.show()
+    if save:
+        plt.savefig(output.joinpath("feature_importance.png"))
     return importancia_df
 
 
@@ -94,5 +99,5 @@ def error_analisis(X_test, y_test, y_pred, by="error"):
     X_test["price"] = y_test
     X_test["pred_price"] = y_pred
     X_test["error_relativo"] = X_test["error"] / y_test
-    print(X_test.sort_values(by=by, ascending=False).round(2).head(10))
+    X_test = X_test.sort_values(by=by, ascending=False)
     return X_test

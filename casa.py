@@ -7,6 +7,7 @@ from modelo import (
     feature_importance,
     model_params_default,
     dalewacho,
+    root_mean_squared_error,
 )
 from utils import nans_x_columna, figura_barrios_geo, comparo_test_train
 from geo import (
@@ -15,11 +16,13 @@ from geo import (
     relleno_latlon_con_media_barrio,
     invierto_lat_lon,
     barrios_con_OSM,
+    creo_zonas_mas_precisas
 )
 from transformaciones import (
     convierto_pesos_a_dolares,
     convierto_ph,
     aplico_transformaciones,
+    precio_xmxbxp,
 )
 from correcciones import (
     correcciones_de_pedo_test,
@@ -27,7 +30,9 @@ from correcciones import (
     mal_values_a_nan_CASA,
     tiro_muchos_nans,
     imputo_ambientes_casa,
+    imputo_sfc_casa,
 )
+from outliers import tiro_outliers_casa
 from texto import rooms_from_text
 
 import re
@@ -116,6 +121,7 @@ control = {
     "dePedo": True,
     "inviertoLatLon": True,
     "barrioOK": True,
+    "barriosMejorados": True,
     "dropGeoNans": True,
     "fillL3cLatlon": True,
     "fillLatloncL3": True,
@@ -124,7 +130,10 @@ control = {
     "trans": True,
     "mal2nan": True,
     "tiroNans": False,
-    "imputAmbs": False, # EST
+    "imputAmbs": True,
+    "imputSfc": True,
+    "tiroOutliers": True,
+    "precio_xbxmxp": True,
 }
 
 # %%
@@ -141,7 +150,7 @@ if control.get("filtroDuplicados", True):
 
 if control.get("pesosADolares", True):
     # Convierto pesos a dolares (solo train)
-    train = convierto_pesos_a_dolares(train)
+    train = convierto_pesos_a_dolares(train, debug=False)
 
 if control.get("dePedo", True):
     # Tiro cosas fortuitas que fui viendo
@@ -174,14 +183,18 @@ if control.get("fillLatloncL3", True):
     test = relleno_latlon_con_media_barrio(test, by="l3")
 
 
-figura_barrios_geo(train, tipo="train", by="l3", show=False)
+if control.get("barriosMejorados", True):
+    train = creo_zonas_mas_precisas(train, uso_osm=True)
+    test = creo_zonas_mas_precisas(test, uso_osm=True)
+
+# figura_barrios_geo(train, tipo="train", by="l3", show=False)
 
 # %%
 ###### SEPARO POR TIPO DE PROPIEDAD #######
 if control.get("phACasa", True):
     # convierto Ph a Casa
-    train = convierto_ph(train)
-    test = convierto_ph(test)
+    train = convierto_ph(train, debug=False)
+    test = convierto_ph(test, debug=False)
 
 if control.get("filtroCasa", True):
     # Filtro por Casa
@@ -199,14 +212,14 @@ if control.get("trans", True):
 ####### AMBIENTES #######
 if control.get("mal2nan", True):
     # Pongo Nans donde no tiene sentido el valor
-    casa_train = mal_values_a_nan_CASA(casa_train)
-    casa_test = mal_values_a_nan_CASA(casa_test)
+    casa_train = mal_values_a_nan_CASA(casa_train, debug=False)
+    casa_test = mal_values_a_nan_CASA(casa_test, debug=False)
 
 if control.get("tiroNans", True):
     # Tiro las filas que tienen muchos nans
     casa_train = tiro_muchos_nans(
         casa_train,
-        debug=True,
+        debug=False,
         tol=2,
         columnas_relevantes=[
             "rooms",
@@ -219,9 +232,35 @@ if control.get("tiroNans", True):
 
 if control.get("imputAmbs", True):
     # Imputo los nans
-    casa_train = imputo_ambientes_casa(casa_train, tipo="train")
-    casa_test = imputo_ambientes_casa(casa_test, tipo="test")
+    casa_train = imputo_ambientes_casa(
+        casa_train, tipo="train", debug=False, imputo=["rooms"]
+    )  # con rooms solo funciona mejor
+    casa_test = imputo_ambientes_casa(
+        casa_test, tipo="test", debug=False, imputo=["rooms"]
+    )
 
+
+if control.get("imputSfc", True):
+    # Imputo los nans
+    casa_train = imputo_sfc_casa(
+        casa_train, tipo="train", debug=False, imputo=["surface_covered"]
+    )
+    casa_test = imputo_sfc_casa(
+        casa_test, tipo="test", debug=False, imputo=["surface_covered"]
+    )
+
+if control.get("tiroOutliers", True):
+    # Tiro outliers
+    casa_train = tiro_outliers_casa(casa_train, casa_test, debug=False)
+
+
+####### PRECIO #######
+if control.get("precio_xbxmxp", True):
+    # Calculo precio por m2
+    casa_train = precio_xmxbxp(
+        casa_train, casa_test, by="l3", sub=False, tipo="train", debug=False
+    )
+    casa_test = precio_xmxbxp(casa_train, casa_test, by="l3", sub=False, tipo="test", debug=False)
 
 print("asd")
 # %%
@@ -248,7 +287,11 @@ predictores_potenciales = [
     "corrijo_bedrooms",
     "corrijo_bathrooms",
     "categoria",
+    "imputo_surface_total",
+    "imputo_surface_covered",
+    "inverti_sups",
 ]
+
 predictores = list(
     set(predictores_potenciales)
     & set(list(casa_train.columns))
@@ -295,9 +338,16 @@ fac = pd.read_csv(
     index_col="id",
 )
 
+fac = fac.loc[X_test.index]
+
 fac["prediccion"] = y_pred
 
-
+fac["error"] = fac["price"] - fac["prediccion"]
+fac["error_abs"] = abs(fac["error"])
+fac["error_rel"] = fac["error"] / fac["price"]
+rmse = root_mean_squared_error(fac["price"], fac["prediccion"])
+print(nombre_prueba)
+print(f"RMSE: {rmse}")
 # %%
 
 

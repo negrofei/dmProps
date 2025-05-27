@@ -121,66 +121,130 @@ def tiro_muchos_nans(df, debug=True, tol=2, columnas_relevantes=["rooms", "bedro
     return df_out
 
 #@title imputo_ambientes_casa
-def imputo_ambientes_casa(df, tipo="train", debug=True):
+def imputo_ambientes_casa(df, tipo="train", debug=True, imputo=["rooms", "bedrooms", "bathrooms"]):
+    
     df_out = df.copy()
     if debug:
         print(f"Arranco con {df_out.shape}")
 
     #### ROOMS ####
-    # Armo flag
-    df_out["corrijo_rooms"] = df_out["rooms"].isna()
+    if "rooms" in imputo:
+        # Armo flag
+        df_out["corrijo_rooms"] = df_out["rooms"].isna()
 
-    # Trato de sacarla del texto
-    df_out = rooms_from_text(df_out)
+        # Trato de sacarla del texto
+        df_out = rooms_from_text(df_out)
 
-    df_out["rooms"] = df_out["rooms"].fillna(
-        df_out[["rooms_from_title", "rooms_from_description"]].max(axis=1)
-    )
-    
-    # Si correjí rooms y rooms < bedrooms le pongo nan
-    df_out.loc[(df_out["corrijo_rooms"])&(df_out["rooms"] <= df_out["bedrooms"]), "rooms"] = np.nan
+        df_out["rooms"] = df_out["rooms"].fillna(
+            df_out[["rooms_from_title", "rooms_from_description"]].max(axis=1)
+        )
+        
+        # Si correjí rooms y rooms < bedrooms le pongo nan
+        df_out.loc[(df_out["corrijo_rooms"])&(df_out["rooms"] <= df_out["bedrooms"]), "rooms"] = np.nan
 
-    # Los nans que quedan lo saco de bedrooms + 1
-    df_out["rooms"] = df_out["rooms"].fillna(df_out["bedrooms"] + 1)
+        # Los nans que quedan lo saco de bedrooms + 1
+        df_out["rooms"] = df_out["rooms"].fillna(df_out["bedrooms"] + 1)
 
-    # Y si no el resto lo tiro a la bosta
-    if tipo=="train":
-        df_out = df_out.dropna(subset=["rooms"])
-    
-    # Tiro las columnas de ayuda
-    df_out = df_out.drop(columns=["rooms_from_title", "rooms_from_description"])
-    
-    #### BEDROOMS ####
-    # Armo flag
-    df_out["corrijo_bedrooms"] = df_out["bedrooms"].isna()
+        # Y si no el resto lo tiro a la bosta
+        if tipo=="train":
+            df_out = df_out.dropna(subset=["rooms"])
+        
+        # Tiro las columnas de ayuda
+        df_out = df_out.drop(columns=["rooms_from_title", "rooms_from_description"])
+        
+    if "bedrooms" in imputo:    
+        #### BEDROOMS ####
+        # Armo flag
+        df_out["corrijo_bedrooms"] = df_out["bedrooms"].isna()
 
-    # Imputo con rooms - 1
-    df_out["bedrooms"] = df_out["bedrooms"].fillna(df_out["rooms"] - 1)
+        # Trato de sacarla del texto
+        df_out = bedrooms_from_text(df_out)
+        df_out["bedrooms"] = df_out["bedrooms"].fillna(
+            df_out[["bedrooms_from_title", "bedrooms_from_description"]].max(axis=1)
+        )
+        # Si correjí rooms y rooms < bedrooms le pongo nan
+        df_out.loc[(df_out["corrijo_bedrooms"])&(df_out["rooms"] <= df_out["bedrooms"]), "bedrooms"] = np.nan
 
-    # Y si no el resto lo tiro a la bosta
-    if tipo=="train":
-        df_out = df_out.dropna(subset=["bedrooms"])
+        # Imputo con rooms - 1
+        df_out["bedrooms"] = df_out["bedrooms"].fillna(df_out["rooms"] - 1)
 
+        # Y si no el resto lo tiro a la bosta
+        if tipo=="train":
+            df_out = df_out.dropna(subset=["bedrooms"])
 
-    #### BATHROOMS ####
-    moda_bathrooms = (
-        df_out
-        .groupby(["rooms", "bedrooms"])["bathrooms"]
-        .agg(lambda x: x.mode().iloc[0] if not x.mode().empty else np.nan)
-    )
-    # Armo flag
-    df_out["corrijo_bathrooms"] = df_out["bathrooms"].isna()
+    if "bathrooms" in imputo:
+        #### BATHROOMS ####
+        moda_bathrooms = (
+            df_out
+            .groupby(["rooms", "bedrooms"])["bathrooms"]
+            .agg(lambda x: x.mode().iloc[0] if not x.mode().empty else np.nan)
+        )
+        # Armo flag
+        df_out["corrijo_bathrooms"] = df_out["bathrooms"].isna()
 
-    df_out["bathrooms_mode"] = df_out.set_index(["rooms", "bedrooms"]).index.map(moda_bathrooms)
+        df_out["bathrooms_mode"] = df_out.set_index(["rooms", "bedrooms"]).index.map(moda_bathrooms)
 
-    df_out["bathrooms"] = df_out["bathrooms"].fillna(df_out["bathrooms_mode"])
+        df_out["bathrooms"] = df_out["bathrooms"].fillna(df_out["bathrooms_mode"])
 
-    df_out = df_out.drop(columns=["bathrooms_mode"])
+        df_out = df_out.drop(columns=["bathrooms_mode"])
 
-    # Lo que resta le pongo 1 
-    df_out["bathrooms"] = df_out["bathrooms"].replace(np.nan, 1)
+        # Lo que resta le pongo 1 
+        df_out["bathrooms"] = df_out["bathrooms"].replace(np.nan, 1)
 
 
     df_out = aplico_transformaciones(df_out)
     return df_out
 
+
+def imputo_sfc_casa(df: pd.DataFrame, tipo="train", debug=True, imputo=["surface_total", "surface_covered", "invierto_surface"]):
+    
+    """ Hago lo que hice en la entrega bien, después vemos """
+    df_out = df.copy()
+    if debug:
+        print(f"Arranco con {df_out.shape}")
+    
+    if "surface_total" in imputo:
+    # Si no tengo superficie total tomo la superficie covered
+        if debug:
+            nans = sum(df_out["surface_total"].isna())
+            print(f"Tengo {nans} surface_total nan")
+        df_out["imputo_surface_total"] = df_out["surface_total"].isna()
+        df_out["surface_total"] = df_out["surface_total"].fillna(df_out["surface_covered"])
+
+    if "surface_covered" in imputo:
+        # Si no tengo surface_covered tomo la surface_total
+        if debug:
+            nans = sum(df_out["surface_covered"].isna())
+            print(f"Tengo {nans} surface_covered nan")
+        df_out["imputo_surface_covered"] = df_out["surface_covered"].isna()
+        df_out["surface_covered"] = df_out["surface_covered"].fillna(df_out["surface_total"])
+    
+    # Si no tengo ninguna los tiro a la mierda
+    if tipo=="train":
+        if debug:
+            nans = ((df_out["surface_covered"].isna()) & (df_out["surface_total"].isna())).sum()
+            print(f"Tengo {nans} surface_covered y surface_total nan")
+        df_out = df_out.dropna(subset=["surface_total", "surface_covered"])
+
+    if "invierto_surface" in imputo:
+        # Si tengo surface_covered > surface_total, las invierto
+        # invierto las superficies que estén al reves
+        df_out["inverti_sups"] = False
+        invertidos = (df_out["surface_total"] < df_out["surface_covered"])
+        mals = df_out[invertidos]
+        if debug:
+            print(f"Tengo {len(mals)} superficies invertidas")
+            # print(mals[["rooms", "surface_total", "surface_covered", "total-cov"]].head())
+
+        for idx, row in mals.iterrows():
+            df_out.loc[idx, ["surface_total", "surface_covered"]] = df_out.loc[idx, ["surface_covered", "surface_total"]].values
+            df_out.at[idx, "inverti_sups"] = True
+    print(f"Termino con {df_out.shape}")
+    return df_out
+
+
+def imputo_precios(df: pd.DataFrame):
+    # Si el precio es NaN lo imputo con surface_covered * precio_x_m2_x_barrio_x_prop
+    df_out["price"] = df_out["price"].fillna(
+        df_out["surface_covered"] * df_out["precio_xmxbxp"]
+    )

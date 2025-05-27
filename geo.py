@@ -17,7 +17,7 @@ def invierto_lat_lon(df):
 
 
 # @title me_fijo_si_barrio_esta_bien
-def me_fijo_si_barrio_esta_bien(df):
+def me_fijo_si_barrio_esta_bien(df: pd.DataFrame):
     df_out = df.copy()
     # Paso 1: Descargar y descomprimir el shapefile
     url = "https://cdn.buenosaires.gob.ar/datosabiertos/datasets/ministerio-de-educacion/barrios/barrios.zip"
@@ -38,6 +38,7 @@ def me_fijo_si_barrio_esta_bien(df):
     gdf["l3"] = gdf["l3"].str.replace("constitución", "constitucion")
     gdf["l3"] = gdf["l3"].str.replace("villa general mitre", "villa gral. mitre")
     gdf["l3"] = gdf["l3"].str.replace("villa pueyrredón", "villa pueyrredon")
+    gdf["l3"] = gdf["l3"].str.replace("san nicolás", "san nicolas")
 
     # Paso 4: Hacer un spatial join
     gdf_joined = gpd.sjoin(
@@ -45,7 +46,7 @@ def me_fijo_si_barrio_esta_bien(df):
     )
 
     df_out["barrio_oficial"] = gdf_joined["nombre"]
-    df_out["l3"] = df_out["l3"].str.lower()
+    df_out["l3"] = gdf["l3"]
 
     df_out["is_barrio_ok"] = df_out["l3"] == df_out["barrio_oficial"]
     return df_out
@@ -56,6 +57,35 @@ def releno_l3_con_barrio_oficial(df):
     df_out["l3"] = df_out["l3"].str.lower()
     df_out["barrio_oficial"] = df_out["barrio_oficial"].str.lower()
     df_out["l3"] = df_out["l3"].fillna(df_out["barrio_oficial"])
+    return df_out
+
+
+def creo_zonas_mas_precisas(df: pd.DataFrame, uso_osm=True):
+    df_out = df.copy()
+    # Los que no son barrios oficiales lo paso a l4
+    no_barrios = sorted(set(df_out["l3"]) - set(df_out["barrio_oficial"]))
+    for no_barrio in no_barrios:
+        df_out.loc[df_out["l3"] == no_barrio, "l4"] = df_out.loc[df_out["l3"] == no_barrio, "l3"]
+        df_out.loc[df_out["l3"] == no_barrio, "l3"] = df_out.loc[df_out["l3"] == no_barrio, "barrio_oficial"]
+
+    df_out["l4"] = df_out["l4"].str.lower()
+
+    if uso_osm:
+        # Asigno l4 con OSM
+        barrios_osm = pd.read_csv("/home/mfeijoo/Documents/yo/master/dm/barrios_osm.csv")
+        barrios_osm_unique = barrios_osm.drop_duplicates(subset=["lat", "lon"])
+        barrios_osm_unique.loc[:, "l3_OSM"] = barrios_osm_unique["l3_OSM"].str.lower().replace({"agronomía":"agronomia",  "constitución":"constitucion", "villa general mitre":"villa gral. mitre", "villa pueyrredón":"villa pueyrredon", "san nicolás":"san nicolas"})
+        barrios_osm_unique.loc[:, "l4_OSM"] = barrios_osm_unique["l4_OSM"].str.lower()
+
+        indice = df_out.index
+        df_out = pd.merge(df_out, barrios_osm_unique, on=["lat", "lon"], how="left")
+        df_out.set_index(indice, inplace=True)
+    
+        # si l4 es nan, pongo l4_OSM
+        df_out.loc[df_out["l4"].isna(), "l4"] = df_out.loc[df_out["l4"].isna(), "l4_OSM"]
+        # pongo el barrio oficial, ahora que discrimino l4
+        df_out.loc[:, "l3"] = df_out.loc[:, "barrio_oficial"]
+    
     return df_out
 
 
