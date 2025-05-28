@@ -1,31 +1,97 @@
 import pandas as pd
-from transformaciones import aplico_transformaciones
+import numpy as np
+from transformaciones import aplico_transformaciones, precio_xmxbxp
 
-def tiro_outliers_casa(df: pd.DataFrame, df_test: pd.DataFrame, columnas=["rooms", "bedrooms", "surface_total"], filtro_cuantil=0.99, debug=True):
+
+def tiro_outliers_casa(
+    df: pd.DataFrame,
+    df_test: pd.DataFrame = None,
+    minmaxs: dict = {},
+    columnas=["rooms", "bedrooms", "surface_total"],
+    otros: dict = {},
+    debug=True,
+):
     df_out = df.copy()
     if debug:
         print(f"Arranco con {df_out.shape}")
-    
-    # Defino los rangos de los outliers segñun lo que haya en el test
-    minmaxs = {
-        "rooms": [1, df_test["rooms"].quantile(filtro_cuantil)],
-        "bedrooms": [0, df_test["bedrooms"].quantile(filtro_cuantil)],
-        "bathrooms": [1, df_test["bathrooms"].quantile(filtro_cuantil)],
-        "surface_total": [10, df_test["surface_total"].quantile(filtro_cuantil)],
-        "surface_covered": [10, df_test["surface_covered"].quantile(filtro_cuantil)],
-        "sup_x_room": [15, df_test["sup_x_room"].quantile(filtro_cuantil)],
-        # "total-cov": [0, df_test["total-cov"].quantile(filtro_cuantil)],
-        "room-bed": [1, df_test["room-bed"].quantile(filtro_cuantil)],
-        "sfc_x_bath" : [10, df_test["sfc_x_bath"].quantile(filtro_cuantil)],
-    }
+
     if debug:
         print(f"Propiedades que no entran en los rangos establecidos\n")
         for col in columnas:
-            print(f"{col}: {len(df_out[(df_out[col]<minmaxs[col][0]) | (df_out[col]>minmaxs[col][1])])}")
-    
+            print(
+                f"{col}: {len(df_out[(df_out[col]<minmaxs[col][0]) | (df_out[col]>minmaxs[col][1])])}"
+            )
+    if columnas == "all":
+        columnas = minmaxs.keys()
     for col in columnas:
-        df_out = df_out[(df_out[col]>=minmaxs[col][0]) & (df_out[col]<=minmaxs[col][1])]
+        df_out = df_out[
+            (df_out[col] >= minmaxs[col][0]) & (df_out[col] <= minmaxs[col][1])
+        ]
+
+    # Adicional para precio_m2
+    sigma = otros.get("sigma", None)
+    if sigma:
+        df_out = df_out[(df_out["precio_m2"] - df_out["precio_xmxbxp"]).abs() < df_out["precio_xmxbxp_std"]*sigma]
+    diff_pm2 = otros.get("diff_pm2", None)
+    if diff_pm2:
+        df_out = df_out[(df_out["precio_m2"] - df_out["precio_xmxbxp"]).abs() < diff_pm2]
 
     df_out = aplico_transformaciones(df_out)
+    df_out = precio_xmxbxp(
+        df_out,
+        df_test,
+        by="l3",
+        sub=False,
+        tipo="train",
+        sup="surface_covered",
+        debug=False,
+    )
+    print(f"Termino con {df_out.shape}")
+    return df_out
+
+
+def tiro_outliers_dpto(
+    df: pd.DataFrame,
+    df_test: pd.DataFrame = None,
+    minmaxs: dict = {},
+    columnas=["rooms", "bedrooms", "surface_total"],
+    otros: dict = {},
+    debug=True,
+):
+    df_out = df.copy()
+    if debug:
+        print(f"Arranco con {df_out.shape}")
+
+    if debug:
+        print(f"Propiedades que no entran en los rangos establecidos\n")
+        for col in columnas:
+            print(
+                f"{col}: {len(df_out[(df_out[col]<minmaxs[col][0]) | (df_out[col]>minmaxs[col][1])])}"
+            )
+    if columnas == "all":
+        columnas = minmaxs.keys()
+    for col in columnas:
+        df_out = df_out[
+            (df_out[col] >= minmaxs[col][0]) & (df_out[col] <= minmaxs[col][1])
+        ]
+
+    # Adicional para precio_m2
+    sigma = otros.get("sigma", None)
+    if sigma:
+        df_out = df_out[(df_out["precio_m2"] - df_out["precio_xmxbxp"]).abs() < df_out["precio_xmxbxp_std"]*sigma]
+    diff_pm2 = otros.get("diff_pm2", None)
+    if diff_pm2:
+        df_out = df_out[(df_out["precio_m2"] - df_out["precio_xmxbxp"]).abs() < diff_pm2]
+
+    df_out = aplico_transformaciones(df_out)
+    df_out = precio_xmxbxp(
+        df_out,
+        df_test,
+        by="l3",
+        sub=False,
+        tipo="train",
+        sup="surface_covered",
+        debug=False,
+    )
     print(f"Termino con {df_out.shape}")
     return df_out

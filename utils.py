@@ -12,8 +12,8 @@ from sklearn.neighbors import LocalOutlierFactor
 from sklearn.preprocessing import MinMaxScaler
 
 from pathlib import Path
-
-output = Path("/home/mfeijoo/Documents/yo/master/dm/output/")
+output = Path(__file__).parent.joinpath("output/")
+output.mkdir(exist_ok=True)
 
 def ver_correlaciones(
     df,

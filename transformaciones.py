@@ -1,9 +1,10 @@
 import pandas as pd
 import numpy as np
-
+from pathlib import Path
+data_dir = Path(__file__).parent.joinpath("fcen-dm-2025-prediccion-precio-de-propiedades")
 
 def convierto_pesos_a_dolares(df, debug=True):
-    pati = "/home/mfeijoo/Documents/yo/master/dm/fcen-dm-2025-prediccion-precio-de-propiedades/tipos-de-cambio-historicos.csv"
+    pati = data_dir.joinpath("tipos-de-cambio-historicos.csv")
     dolar = pd.read_csv(pati)
     df_out = df.copy()
     df_out = pd.merge(
@@ -106,11 +107,11 @@ def aplico_transformaciones(df: pd.DataFrame):
 
 
 def precio_xmxbxp(
-    df_train: pd.DataFrame, df_test: pd.DataFrame, by="l3", sub=True, tipo="train", debug=True
+    df_train: pd.DataFrame, df_test: pd.DataFrame, by="l3", sub=True, sup="surface_covered", tipo="train", debug=True
 ):
 
     df_out = df_train.copy()
-    df_out["precio_m2"] = df_out["price"] / df_out["surface_covered"]
+    df_out["precio_m2"] = df_out["price"] / df_out[sup]
 
     # Mean price per m2 by l3 and l4
     mean_l3 = df_out.groupby("l3")["precio_m2"].mean()
@@ -170,4 +171,10 @@ def precio_xmxbxp(
     if debug:
         print(df_out.groupby(by)["precio_m2"].describe())
 
+    return df_out
+
+
+def precio_estimado(df: pd.DataFrame, sup="surface_covered", debug=True):
+    df_out = df.copy()
+    df_out["precio_estimado"] = df_out["precio_xmxbxp"] * df_out[sup]
     return df_out

@@ -8,6 +8,8 @@ import pandas as pd
 from geopy.geocoders import Nominatim
 from geopy.extra.rate_limiter import RateLimiter
 
+from pathlib import Path
+data_dir = Path(__file__).parent.joinpath("fcen-dm-2025-prediccion-precio-de-propiedades")
 
 def invierto_lat_lon(df):
     df_out = df.copy()
@@ -52,11 +54,13 @@ def me_fijo_si_barrio_esta_bien(df: pd.DataFrame):
     return df_out
 
 
-def releno_l3_con_barrio_oficial(df):
+def releno_l3_con_barrio_oficial(df: pd.DataFrame):
     df_out = df.copy()
     df_out["l3"] = df_out["l3"].str.lower()
     df_out["barrio_oficial"] = df_out["barrio_oficial"].str.lower()
     df_out["l3"] = df_out["l3"].fillna(df_out["barrio_oficial"])
+    # Si barrio_oficial es nan, pongo l3
+    df_out["barrio_oficial"] = df_out["barrio_oficial"].fillna(df_out["l3"])
     return df_out
 
 
@@ -72,7 +76,7 @@ def creo_zonas_mas_precisas(df: pd.DataFrame, uso_osm=True):
 
     if uso_osm:
         # Asigno l4 con OSM
-        barrios_osm = pd.read_csv("/home/mfeijoo/Documents/yo/master/dm/barrios_osm.csv")
+        barrios_osm = pd.read_csv(data_dir.joinpath("barrios_osm.csv"))
         barrios_osm_unique = barrios_osm.drop_duplicates(subset=["lat", "lon"])
         barrios_osm_unique.loc[:, "l3_OSM"] = barrios_osm_unique["l3_OSM"].str.lower().replace({"agronomía":"agronomia",  "constitución":"constitucion", "villa general mitre":"villa gral. mitre", "villa pueyrredón":"villa pueyrredon", "san nicolás":"san nicolas"})
         barrios_osm_unique.loc[:, "l4_OSM"] = barrios_osm_unique["l4_OSM"].str.lower()
@@ -103,8 +107,7 @@ def relleno_latlon_con_media_barrio(df, by="barrio_oficial"):
     df_out["corrijo_latlon"] = df_out["lat"].isna() | (df_out["lon"].isna())
     df_out["lat"] = df_out["lat"].fillna(df_out["mean_lat"])
     df_out["lon"] = df_out["lon"].fillna(df_out["mean_lon"])
-    # Si barrio_oficial es nan, pongo l3
-    df_out["barrio_oficial"] = df_out["barrio_oficial"].fillna(df_out["l3"])
+
     return df_out
 
 

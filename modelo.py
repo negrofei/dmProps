@@ -17,7 +17,8 @@ model_params_default = {
 }
 
 from pathlib import Path
-output = Path("/home/mfeijoo/Documents/yo/master/dm/output/")
+output = Path(__file__).parent.joinpath("output/")
+output.mkdir(exist_ok=True)
 
 def entreno_RandomForestRegressor(
     X: pd.DataFrame, y: pd.DataFrame, test_size=0.1, random_state=42, model_params=model_params_default

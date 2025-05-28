@@ -31,16 +31,17 @@ from transformaciones import (
 from correcciones import (
     correcciones_de_pedo_test,
     correcciones_de_pedo_train,
-    mal2nan_ambientes_casa,
+    mal2nan_ambientes_dpto,
     tiro_muchos_nans,
-    imputo_ambientes_casa,
-    imputo_sfc_casa,
+    imputo_ambientes_dpto,
+    imputo_sfc_dpto,
     imputo_precio,
-    mal2nan_sfc_casa,
-    mal2nan_precio_casa,
+    mal2nan_sfc_dpto,
+    mal2nan_precio_dpto,
+    corrijo_superficies_dpto,
 )
-from outliers import tiro_outliers_casa
-from texto import aplico_dummies_casa
+from outliers import tiro_outliers_dpto
+from texto import aplico_dummies_dpto
 
 import numpy as np
 
@@ -65,14 +66,14 @@ control = {
     ######### LAT LON L3 #########
     "invLatLon": True,
     "barrioOK": True,
-    "barrioMej": True,
+    "barrioMej": False,
     "dropGeoNans": True,
     "impL3wBarrioOK": True,
-    "impLatloncL3": True,
-    "osm": True,
+    "impLatloncL3": False,
+    "osm": False,
     ###### PROPIEDAD ######
-    "ph2Casa": True,
-    "filCasa": True,
+    "ph2dpto": False,
+    "filDpto": True,
     "tr": True,
     ####### AMBIENTES #######
     "mal2nan_amb": True,
@@ -82,27 +83,28 @@ control = {
     "mal2nan_sfc": True,
     "impSfc": True,
     "sfc2imp": ["surface_total", "surface_covered", "invierto_surface"],
+    "sfcMalDec": True,
     ####### PRECIO #######
     "precio_xbxmxp": True,
     "impPrecio": True,
-    "precio_estimado": False,
+    "precio_estimado": True,
     ####### OUTLIERS #######
     "dropOut": True,
     "minmax": {
-        "rooms": [1, 16],
-        "bedrooms": [0, 12],
-        "bathrooms": [1, 8],
-        "surface_total": [10, 1200],
-        "surface_covered": [10, 800],
+        "rooms": [1, 10],
+        "bedrooms": [0, 10],
+        "bathrooms": [1, 7],
+        "surface_total": [10, 700],
+        "surface_covered": [10, 700],
         "price": [10000, np.inf],
-        "sup_x_room": [15, 100],
-        "room-bed": [1, 10],
+        "sup_x_room": [15, 300],
+        "room-bed": [0, 10],
         "sfc_x_bath": [10, 300],
         "precio_m2": [500, 10000],
-        "precio_xmxbxp": [1000, 3500],
+        "precio_xmxbxp": [500, np.inf],
     },
     "otros": {
-        "sigma": 1.5,
+        "sigma": 1,
         "diff_pm2": 4000,
     },
     ###### TXT ######
@@ -166,75 +168,78 @@ if control.get("barrioMej", True) and control.get("barrioOK", True):
 
 # %%
 ###### SEPARO POR TIPO DE PROPIEDAD #######
-if control.get("ph2Casa", True):
-    # convierto Ph a Casa
+if control.get("ph2dpto", False):
+    # convierto Ph a dpto
     train = convierto_ph(train, debug=False)
     test = convierto_ph(test, debug=False)
 
-if control.get("filCasa", True):
-    # Filtro por Casa
-    casa_train = filtro_por_propiedad(
-        train, property_type="Casa", busco_en_titulo=False
+if control.get("filDpto", True):
+    # Filtro por dpto
+    dpto_train = filtro_por_propiedad(
+        train, property_type="Departamento", busco_en_titulo=False
     )
-    casa_test = filtro_por_propiedad(test, property_type="Casa", busco_en_titulo=False)
+    dpto_test = filtro_por_propiedad(test, property_type="Departamento", busco_en_titulo=False)
 
 if control.get("tr", True):
     # Aplico transformaciones
-    casa_train = aplico_transformaciones(casa_train)
-    casa_test = aplico_transformaciones(casa_test)
+    dpto_train = aplico_transformaciones(dpto_train)
+    dpto_test = aplico_transformaciones(dpto_test)
 
 # %%
 ####### AMBIENTES #######
 if control.get("mal2nan_amb", True):
     # Pongo Nans donde no tiene sentido el valor
-    casa_train = mal2nan_ambientes_casa(casa_train, debug=False)
-    casa_test = mal2nan_ambientes_casa(casa_test, debug=False)
+    dpto_train = mal2nan_ambientes_dpto(dpto_train, debug=False)
+    dpto_test = mal2nan_ambientes_dpto(dpto_test, debug=False)
 
 if control.get("impAmbs", True):
     # Imputo los nans
-    casa_train = imputo_ambientes_casa(
-        casa_train, tipo="train", debug=False, imputo=control.get("ams2imp")
+    dpto_train = imputo_ambientes_dpto(
+        dpto_train, tipo="train", debug=False, imputo=control.get("ams2imp")
     )  # con rooms solo funciona mejor
-    casa_test = imputo_ambientes_casa(
-        casa_test, tipo="test", debug=False, imputo=control.get("ams2imp")
+    dpto_test = imputo_ambientes_dpto(
+        dpto_test, tipo="test", debug=False, imputo=control.get("ams2imp")
     )
 
 ####### SUPERFICIE #######
 if control.get("mal2nan_sfc", True):
     # Pongo Nans donde no tiene sentido el valor
-    casa_train = mal2nan_sfc_casa(casa_train, debug=False)
-    casa_test = mal2nan_sfc_casa(casa_test, debug=False)
+    dpto_train = mal2nan_sfc_dpto(dpto_train, debug=False)
+    dpto_test = mal2nan_sfc_dpto(dpto_test, debug=False)
 
 if control.get("impSfc", True):
     # Imputo los nans
-    casa_train = imputo_sfc_casa(
-        casa_train, tipo="train", debug=False, imputo=control.get("sfc2imp")
+    dpto_train = imputo_sfc_dpto(
+        dpto_train, tipo="train", debug=False, imputo=control.get("sfc2imp")
     )
-    casa_test = imputo_sfc_casa(
-        casa_test, tipo="test", debug=False, imputo=control.get("sfc2imp")
+    dpto_test = imputo_sfc_dpto(
+        dpto_test, tipo="test", debug=False, imputo=control.get("sfc2imp")
     )
 
+if control.get("sfcMalDec", True):
+    # Pongo Nans donde no tiene sentido el valor
+    dpto_train = corrijo_superficies_dpto(dpto_train, df_test=dpto_test, debug=False, inflado=True)
 
 ####### PRECIO #######
 if control.get("mal2nan_precio", True):
     # Pongo Nans donde no tiene sentido el valor
-    casa_train = mal2nan_precio_casa(casa_train, debug=False)
-    casa_test = mal2nan_precio_casa(casa_test, debug=False)
+    dpto_train = mal2nan_precio_dpto(dpto_train, debug=False)
+    dpto_test = mal2nan_precio_dpto(dpto_test, debug=False)
 
 if control.get("precio_xbxmxp", True):
     # Calculo precio por m2
-    casa_train = precio_xmxbxp(
-        casa_train,
-        casa_test,
+    dpto_train = precio_xmxbxp(
+        dpto_train,
+        dpto_test,
         by="l3",
         sub=control.get("osm", False),
         tipo="train",
         sup="surface_covered",
         debug=False,
     )
-    casa_test = precio_xmxbxp(
-        casa_train,
-        casa_test,
+    dpto_test = precio_xmxbxp(
+        dpto_train,
+        dpto_test,
         by="l3",
         sub=False,
         sup="surface_covered",
@@ -244,13 +249,13 @@ if control.get("precio_xbxmxp", True):
 
     if control.get("impPrecio", True):
         # Imputo los nans
-        casa_train = imputo_precio(casa_train, sup="surface_covered")
+        dpto_train = imputo_precio(dpto_train, sup="surface_covered")
 
 if control.get("dropOut", True) and control.get("precio_xbxmxp", True):
     # Tiro outliers
-    casa_train = tiro_outliers_casa(
-        casa_train, 
-        df_test=casa_test,
+    dpto_train = tiro_outliers_dpto(
+        dpto_train, 
+        df_test=dpto_test,
         minmaxs=control.get("minmax"),
         columnas="all",
         otros=control.get("otros"),
@@ -258,13 +263,13 @@ if control.get("dropOut", True) and control.get("precio_xbxmxp", True):
 
 if control.get("precio_estimado", True):
     # Calculo precio estimado
-    casa_train = precio_estimado(casa_train, sup="surface_covered")
-    casa_test = precio_estimado(casa_test, sup="surface_covered")
+    dpto_train = precio_estimado(dpto_train, sup="surface_covered")
+    dpto_test = precio_estimado(dpto_test, sup="surface_covered")
 
 if control.get("dums", True):
     # Creo dummies
-    casa_train = aplico_dummies_casa(casa_train)
-    casa_test = aplico_dummies_casa(casa_test)
+    dpto_train = aplico_dummies_dpto(dpto_train)
+    dpto_test = aplico_dummies_dpto(dpto_test)
 
 print("asd")
 # %%
@@ -306,14 +311,14 @@ predictores_potenciales = [
 
 predictores = list(
     set(predictores_potenciales)
-    & set(list(casa_train.columns))
-    & set(list(casa_test.columns))
+    & set(list(dpto_train.columns))
+    & set(list(dpto_test.columns))
 )
 target = "price"
 
 while True:
 
-    train = casa_train[predictores + [target]]
+    train = dpto_train[predictores + [target]]
 
 
     X = train.dropna(subset=predictores + [target])[predictores]
@@ -323,8 +328,7 @@ while True:
     reg, y_pred, score_test, (X_test, y_test) = entreno_RandomForestRegressor(
         X=X,
         y=y,
-        test_size=max(0.1, round(casa_test.shape[0]/train.shape[0], 2)),
-
+        test_size=round(dpto_test.shape[0]/dpto_train.shape[0], 2),
         random_state=42,
         model_params=model_params_default,
     )
@@ -332,7 +336,7 @@ while True:
     importancia = feature_importance(reg, predictores)
     errores = error_analisis(X_test, y_test, y_pred, by="error")
 
-    features_al_pedo = list(importancia[importancia["importance"] < 5e-4]["feature"])
+    features_al_pedo = list(importancia[importancia["importance"] < 2e-4]["feature"])
     if len(features_al_pedo) == 0:
         break   
     predictores = list(set(predictores) - set(features_al_pedo))
@@ -342,8 +346,8 @@ while True:
 ### VOY CON TEST
 
 reg, y_pred, X_test = dalewacho(
-    train=casa_train,
-    test=casa_test,
+    train=dpto_train,
+    test=dpto_test,
     predictores=predictores,
     target=target,
     random_state=42,
@@ -372,12 +376,12 @@ now = datetime.now().strftime("%Y%m%d-%H%M")
 soluciones_path = Path(__file__).parent.joinpath("soluciones")
 soluciones_path.mkdir(exist_ok=True)
 
-conf_sol_casa = "config_soluciones_casa.csv"
+conf_sol_dpto = "config_soluciones_dpto.csv"
 # hago dos archivos uno con la solucion en si y otro con la configuración
-if soluciones_path.joinpath(conf_sol_casa).exists():
-    config_soluciones_casa = pd.read_csv(soluciones_path.joinpath(conf_sol_casa))
+if soluciones_path.joinpath(conf_sol_dpto).exists():
+    config_soluciones_dpto = pd.read_csv(soluciones_path.joinpath(conf_sol_dpto))
 else:
-    config_soluciones_casa = pd.DataFrame(
+    config_soluciones_dpto = pd.DataFrame(
         {
             "fecha": [],
             "modelo": [],
@@ -387,9 +391,9 @@ else:
             "rmse_sol": [],
         }
     )
-config_soluciones_casa = pd.concat(
+config_soluciones_dpto = pd.concat(
     [
-        config_soluciones_casa,
+        config_soluciones_dpto,
         pd.DataFrame(
             {
                 "fecha": [now],
@@ -404,9 +408,9 @@ config_soluciones_casa = pd.concat(
     ]
 )
 
-print(config_soluciones_casa[["score_train", "rmse_sol"]].tail())
-config_soluciones_casa.to_csv(soluciones_path.joinpath(conf_sol_casa), index=False)
-sol_casa = pd.DataFrame(index=X_test.index, columns={"price": y_pred})
-sol_casa.to_csv(soluciones_path.joinpath(f"sol_casa_{now}.csv"))
+print(config_soluciones_dpto[["score_train", "rmse_sol"]].tail())
+config_soluciones_dpto.to_csv(soluciones_path.joinpath(conf_sol_dpto), index=False)
+sol_dpto = pd.DataFrame(index=X_test.index, columns={"price": y_pred})
+sol_dpto.to_csv(soluciones_path.joinpath(f"sol_dpto_{now}.csv"))
 
 print("asd")
